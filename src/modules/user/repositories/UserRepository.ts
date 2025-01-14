@@ -4,87 +4,76 @@ import { hash, compare } from "bcrypt";
 import { sign, verify } from "jsonwebtoken";
 import { Request, Response } from "express";
 
-class UserRepository{
-    create(request: Request, response: Response){
-        const {name,email,password} = request.body;
-        pool.getConnection((err: any , connection: any) =>{
-        hash(password,10, (err,hash) =>{
-            if(err){
-                return response.status(500).json(err)
-            }
+class UserRepository {
+    create(request: Request, response: Response) {
+        const { name, email, password } = request.body;
+        pool.getConnection((err: any, connection: any) => {
+            hash(password, 10, (err, hash) => {
+                if (err) {
+                    return response.status(500).json(err);
+                }
 
+                connection.query(
+                    "INSERT INTO users (user_id, name, email, password) VALUES (?, ?, ?, ?)",
+                    [uuidv4(), name, email, hash],
+                    (error: any, result: any, fields: any) => {
+                        connection.release();
+                        if (error) {
+                            return response.status(400).json(error);
+                        }
+                        response.status(200).json({ message: "Usuário criado com sucesso" });
+                    }
+                );
+            });
+        });
+    }
+
+    login(request: Request, response: Response) {
+        const { email, password } = request.body;
+        pool.getConnection((err: any, connection: any) => {
             connection.query(
-                "INSERT INTO users (user_id, name, email, password) VALUES (? , ? , ? ,?)",
-                [uuidv4(), name, email, hash],
-                (error: any , result: any , fields: any) =>{
+                "SELECT * FROM users WHERE email = ?",
+                [email],
+                (error: any, results: any, fields: any) => {
                     connection.release();
-                    if(error){
-                        return response.status(400).json(error)
+                    if (error) {
+                        return response.status(400).json({ error: "Erro na sua autentificação!" });
                     }
-                    response.status(200).json({messege: "Usuário criado com sucesso"});
-                }
-            )
-        })
 
-        
-    })
+                    compare(password, results[0].password, (err, result) => {
+                        if (err) {
+                            return response.status(400).json({ error: "Erro na sua autentificação!" });
+                        }
+
+                        if (result) {
+                            const token = sign({
+                                id: results[0].user_id,
+                                email: results[0].email,
+                            }, process.env.SECRET as string, { expiresIn: "1d" });
+
+                            console.log(token);
+                            return response.status(200).json({ token: token, message: "Autenticado com sucesso" });
+                        }
+                    });
+                }
+            );
+        });
     }
 
-    login(request: Request, response: Response){
-        const { email,password } = request.body;
-        pool.getConnection((err: any , connection: any) =>{
-        
-        connection.query(
-            "SELECT * FROM users WHERE email = ?",
-            [email],
-            (error: any , results: any , fields: any) =>{
-                connection.release();
-                if(error){
-                    return response.status(400).json({error:"Erro na sua autentificação!"})
-                }
-                
-                compare(password, results[0].password, (err,result) => {
-                    if(err){
-                        return response.status(400).json({error:"Erro na sua autentificação!"})
-                    }
-
-                    
-                    if(result){
-                        //jsonwebtoken
-                        const token = sign({
-                            id: results[0].user_id,
-                            email: results[0].email
-                        }, process.env.SECRET as string , {expiresIn: "1d"})
-
-                        console.log(token)
-                        return response.status(200).json({token:token, messege: "Autenticado com sucesso"})
-
-                    }
-                })
-
-            }
-        )
-
-        
-
-        
-    })
-    }
-
-    getUser(request: any, response: any){
-        const decode: any = verify(request.headers.authorization , process.env.SECRET as string);
-        if(decode.email){
+    getUser(request: any, response: any) {
+        const decode: any = verify(request.headers.authorization, process.env.SECRET as string);
+        if (decode.email) {
             pool.getConnection((error, conn) => {
                 conn.query(
                     'SELECT * FROM users WHERE email=?',
                     [decode.email],
                     (error, resultado, fields) => {
                         conn.release();
-                        if(error){
+                        if (error) {
                             return response.status(400).send({
                                 error: error,
-                                response: null
-                            })
+                                response: null,
+                            });
                         }
 
                         return response.status(201).send({
@@ -93,14 +82,14 @@ class UserRepository{
                                 email: resultado[0].email,
                                 id: resultado[0].user_id,
                             }
-                        })
+                        });
                     }
-                )
-            })
+                );
+            });
         }
     }
+
+
 }
-
-
 
 export { UserRepository };
