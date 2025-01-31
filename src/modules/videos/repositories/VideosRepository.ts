@@ -30,7 +30,7 @@ class VideoRepository {
 
   getVideos(request: Request, response: Response){
 
-    const {user_id} = request.query;
+    const {user_id} = request.params;
 
     pool.getConnection((err: any, connection: any) => {
 
